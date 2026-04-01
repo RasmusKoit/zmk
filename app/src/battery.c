@@ -22,6 +22,10 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/activity.h>
 #include <zmk/workqueue.h>
 
+#if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
+#include <zmk/npm1300_vbat.h>
+#endif
+
 static uint8_t last_state_of_charge = 0;
 
 uint8_t zmk_battery_state_of_charge(void) { return last_state_of_charge; }
@@ -34,7 +38,8 @@ static const struct device *const battery = DEVICE_DT_GET(DT_CHOSEN(zmk_battery)
 static const struct device *battery;
 #endif
 
-#if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_LITHIUM_VOLTAGE)
+#if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_LITHIUM_VOLTAGE) ||                         \
+    IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
 
 #if IS_ENABLED(CONFIG_ZMK_BATTERY_PROFILE_YDL375678)
 // Battery profile for YDL375678 - OCV table from characterization
@@ -106,7 +111,7 @@ static uint8_t lithium_ion_mv_to_pct(int16_t bat_mv) {
 }
 #endif // IS_ENABLED(CONFIG_ZMK_BATTERY_PROFILE_YDL375678)
 
-#endif // IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_LITHIUM_VOLTAGE)
+#endif // IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_LITHIUM_VOLTAGE) || IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
 
 static int zmk_battery_update(const struct device *battery) {
     struct sensor_value state_of_charge;
@@ -145,6 +150,20 @@ static int zmk_battery_update(const struct device *battery) {
     state_of_charge.val1 = lithium_ion_mv_to_pct(mv);
 
     LOG_DBG("State of change %d from %d mv", state_of_charge.val1, mv);
+#elif IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
+    ARG_UNUSED(battery);
+
+    int mv;
+    rc = zmk_npm1300_read_vbat_mv(&mv);
+    if (rc != 0) {
+        LOG_DBG("Failed to read VBAT from nPM1300: %d", rc);
+        return rc;
+    }
+
+    state_of_charge.val1 = lithium_ion_mv_to_pct(mv);
+    state_of_charge.val2 = 0;
+
+    LOG_DBG("State of charge %d from %d mV", state_of_charge.val1, mv);
 #else
 #error "Not a supported reporting fetch mode"
 #endif
@@ -194,12 +213,20 @@ static void zmk_battery_timer(struct k_timer *timer) {
 K_TIMER_DEFINE(battery_timer, zmk_battery_timer, NULL);
 
 static void zmk_battery_start_reporting() {
+#if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
+    k_timer_start(&battery_timer, K_NO_WAIT, K_SECONDS(CONFIG_ZMK_BATTERY_REPORT_INTERVAL));
+#else
     if (device_is_ready(battery)) {
         k_timer_start(&battery_timer, K_NO_WAIT, K_SECONDS(CONFIG_ZMK_BATTERY_REPORT_INTERVAL));
     }
+#endif
 }
 
 static int zmk_battery_init(void) {
+#if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
+    zmk_battery_start_reporting();
+    return 0;
+#else
 #if !DT_HAS_CHOSEN(zmk_battery)
     battery = device_get_binding("BATTERY");
 
@@ -217,6 +244,7 @@ static int zmk_battery_init(void) {
 
     zmk_battery_start_reporting();
     return 0;
+#endif
 }
 
 static int battery_event_listener(const zmk_event_t *eh) {

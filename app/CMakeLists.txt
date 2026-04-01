@@ -93,6 +93,7 @@ target_sources_ifdef(CONFIG_ZMK_BACKLIGHT app PRIVATE src/behaviors/behavior_bac
 
 target_sources_ifdef(CONFIG_ZMK_BATTERY_REPORTING app PRIVATE src/events/battery_state_changed.c)
 target_sources_ifdef(CONFIG_ZMK_BATTERY_REPORTING app PRIVATE src/battery.c)
+target_sources_ifdef(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT app PRIVATE src/npm1300_vbat.c)
 
 target_sources_ifdef(CONFIG_ZMK_HID_INDICATORS app PRIVATE src/events/hid_indicators_changed.c)
 add_subdirectory_ifdef(CONFIG_ZMK_HID_INDICATORS src/indicators)
