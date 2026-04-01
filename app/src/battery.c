@@ -153,17 +153,19 @@ static int zmk_battery_update(const struct device *battery) {
 #elif IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
     ARG_UNUSED(battery);
 
+    LOG_INF("Battery update: using NPM1300_DIRECT mode");
+
     int mv;
     rc = zmk_npm1300_read_vbat_mv(&mv);
     if (rc != 0) {
-        LOG_DBG("Failed to read VBAT from nPM1300: %d", rc);
+        LOG_ERR("Failed to read VBAT from nPM1300: %d", rc);
         return rc;
     }
 
     state_of_charge.val1 = lithium_ion_mv_to_pct(mv);
     state_of_charge.val2 = 0;
 
-    LOG_DBG("State of charge %d from %d mV", state_of_charge.val1, mv);
+    LOG_INF("State of charge %d from %d mV", state_of_charge.val1, mv);
 #else
 #error "Not a supported reporting fetch mode"
 #endif

@@ -38,10 +38,14 @@ static const struct i2c_dt_spec npm1300_i2c = I2C_DT_SPEC_GET(NPM1300_NODE);
 #define NPM1300_VBAT_ADC_STEPS 1023 /* 10-bit ADC: 2^10 - 1 */
 
 int zmk_npm1300_read_vbat_mv(int *out_mv) {
+    LOG_INF("zmk_npm1300_read_vbat_mv called");
+
     if (!device_is_ready(npm1300_i2c.bus)) {
         LOG_ERR("nPM1300 I2C bus not ready");
         return -ENODEV;
     }
+
+    LOG_INF("nPM1300 I2C bus is ready");
 
     uint8_t tx[3] = {NPM1300_ADC_BANK, NPM1300_REG_TASKVBATMEASURE, 0x01};
     int ret = i2c_write_dt(&npm1300_i2c, tx, sizeof(tx));
@@ -80,6 +84,6 @@ int zmk_npm1300_read_vbat_mv(int *out_mv) {
         *out_mv = (int)mv;
     }
 
-    LOG_DBG("nPM1300 VBAT: ADC=%u -> %d mV", vbat_adc, (int)mv);
+    LOG_INF("nPM1300 VBAT: ADC=%u -> %d mV", vbat_adc, (int)mv);
     return 0;
 }
