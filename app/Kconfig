@@ -395,6 +395,28 @@ config ZMK_BATTERY_REPORTING_FETCH_MODE_LITHIUM_VOLTAGE
 
 endchoice
 
+if ZMK_BATTERY_REPORTING_FETCH_MODE_LITHIUM_VOLTAGE
+
+choice ZMK_BATTERY_PROFILE
+    prompt "Battery Profile"
+    default ZMK_BATTERY_PROFILE_GENERIC
+
+config ZMK_BATTERY_PROFILE_GENERIC
+    bool "Generic Lithium-Ion (Adafruit curve)"
+    help
+      Use generic lithium-ion voltage curve based on Adafruit discharge graph.
+      Suitable for most standard lithium-ion/polymer batteries.
+
+config ZMK_BATTERY_PROFILE_YDL375678
+    bool "YDL375678 Battery Profile"
+    help
+      Use calibrated OCV table for YDL375678 battery.
+      Provides more accurate SOC estimation based on battery characterization.
+
+endchoice
+
+endif # ZMK_BATTERY_REPORTING_FETCH_MODE_LITHIUM_VOLTAGE
+
 endif # ZMK_BATTERY_REPORTING
 
 config ZMK_IDLE_TIMEOUT
