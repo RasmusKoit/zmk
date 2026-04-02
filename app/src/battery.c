@@ -298,6 +298,11 @@ static int peripheral_battery_event_listener(const zmk_event_t *eh) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
+    if (ev->state_of_charge == 0) {
+        LOG_DBG("Ignoring peripheral battery 0%% (not yet initialized)");
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
     peripheral_state_of_charge = ev->state_of_charge;
     peripheral_battery_known = true;
 
