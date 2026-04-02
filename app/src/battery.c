@@ -233,10 +233,10 @@ K_TIMER_DEFINE(battery_timer, zmk_battery_timer, NULL);
 
 static void zmk_battery_start_reporting() {
 #if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
-    k_timer_start(&battery_timer, K_SECONDS(5), K_SECONDS(CONFIG_ZMK_BATTERY_REPORT_INTERVAL));
+    k_timer_start(&battery_timer, K_NO_WAIT, K_SECONDS(CONFIG_ZMK_BATTERY_REPORT_INTERVAL));
 #else
     if (device_is_ready(battery)) {
-        k_timer_start(&battery_timer, K_SECONDS(5), K_SECONDS(CONFIG_ZMK_BATTERY_REPORT_INTERVAL));
+        k_timer_start(&battery_timer, K_NO_WAIT, K_SECONDS(CONFIG_ZMK_BATTERY_REPORT_INTERVAL));
     }
 #endif
 }
