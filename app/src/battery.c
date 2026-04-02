@@ -28,6 +28,12 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 static uint8_t last_state_of_charge = 0;
 
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) && \
+    IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
+static uint8_t peripheral_state_of_charge = 0;
+static bool peripheral_battery_known = false;
+#endif
+
 uint8_t zmk_battery_state_of_charge(void) { return last_state_of_charge; }
 
 #if DT_HAS_CHOSEN(zmk_battery)
@@ -183,14 +189,25 @@ static int zmk_battery_update(const struct device *battery) {
     }
 
 #if IS_ENABLED(CONFIG_BT_BAS)
-    if (bt_bas_get_battery_level() != last_state_of_charge) {
-        LOG_DBG("Setting BAS GATT battery level to %d.", last_state_of_charge);
+    {
+        uint8_t reported_level = last_state_of_charge;
 
-        rc = bt_bas_set_battery_level(last_state_of_charge);
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) && \
+    IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
+        if (peripheral_battery_known && peripheral_state_of_charge < reported_level) {
+            reported_level = peripheral_state_of_charge;
+        }
+#endif
 
-        if (rc != 0) {
-            LOG_WRN("Failed to set BAS GATT battery level (err %d)", rc);
-            return rc;
+        if (bt_bas_get_battery_level() != reported_level) {
+            LOG_DBG("Setting BAS GATT battery level to %d.", reported_level);
+
+            rc = bt_bas_set_battery_level(reported_level);
+
+            if (rc != 0) {
+                LOG_WRN("Failed to set BAS GATT battery level (err %d)", rc);
+                return rc;
+            }
         }
     }
 #endif
@@ -270,5 +287,37 @@ static int battery_event_listener(const zmk_event_t *eh) {
 ZMK_LISTENER(battery, battery_event_listener);
 
 ZMK_SUBSCRIPTION(battery, zmk_activity_state_changed);
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) && \
+    IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
+
+static int peripheral_battery_event_listener(const zmk_event_t *eh) {
+    const struct zmk_peripheral_battery_state_changed *ev =
+        as_zmk_peripheral_battery_state_changed(eh);
+    if (ev == NULL) {
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
+    peripheral_state_of_charge = ev->state_of_charge;
+    peripheral_battery_known = true;
+
+    LOG_DBG("Peripheral battery: %d%%", peripheral_state_of_charge);
+
+#if IS_ENABLED(CONFIG_BT_BAS)
+    uint8_t reported_level = MIN(last_state_of_charge, peripheral_state_of_charge);
+    if (bt_bas_get_battery_level() != reported_level) {
+        LOG_DBG("Updating BAS GATT battery level to %d (min of central=%d, peripheral=%d).",
+                reported_level, last_state_of_charge, peripheral_state_of_charge);
+        bt_bas_set_battery_level(reported_level);
+    }
+#endif
+
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(peripheral_battery, peripheral_battery_event_listener);
+ZMK_SUBSCRIPTION(peripheral_battery, zmk_peripheral_battery_state_changed);
+
+#endif /* CONFIG_ZMK_SPLIT && CONFIG_ZMK_SPLIT_ROLE_CENTRAL && CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING */
 
 SYS_INIT(zmk_battery_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
