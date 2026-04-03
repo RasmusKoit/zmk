@@ -317,6 +317,7 @@ static int peripheral_battery_event_listener(const zmk_event_t *eh) {
 ZMK_LISTENER(peripheral_battery, peripheral_battery_event_listener);
 ZMK_SUBSCRIPTION(peripheral_battery, zmk_peripheral_battery_state_changed);
 
-#endif /* CONFIG_ZMK_SPLIT && CONFIG_ZMK_SPLIT_ROLE_CENTRAL && CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING */
+#endif /* CONFIG_ZMK_SPLIT && CONFIG_ZMK_SPLIT_ROLE_CENTRAL &&                                     \
+          CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING */
 
 SYS_INIT(zmk_battery_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
