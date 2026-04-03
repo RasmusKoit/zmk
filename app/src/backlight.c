@@ -22,7 +22,7 @@
 #include <zmk/events/activity_state_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC) && \
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC) &&                              \
     IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 #include <zmk/split/central.h>
 #define BREATHE_SYNC_CENTRAL 1
@@ -30,7 +30,7 @@
 
 // Only the central (or non-split) should decide when to start breathing.
 // Peripherals only breathe when told to via sync commands.
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC) && \
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC) &&                              \
     !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 #define BREATHE_PERIPHERAL_ONLY 1
 #endif
@@ -316,7 +316,7 @@ static int backlight_event_listener(const zmk_event_t *eh) {
         }
 #if !BREATHE_PERIPHERAL_ONLY
         else if (!breathing_active && usb_powered &&
-                   zmk_activity_get_state() == ZMK_ACTIVITY_IDLE) {
+                 zmk_activity_get_state() == ZMK_ACTIVITY_IDLE) {
             zmk_backlight_breathe_start();
         }
 #endif // !BREATHE_PERIPHERAL_ONLY
