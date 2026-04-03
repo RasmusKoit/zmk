@@ -30,6 +30,18 @@ config ZMK_SPLIT_PERIPHERAL_HID_INDICATORS
     help
       Enable propagating the HID (LED) Indicator state to the split peripheral(s).
 
+config ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC
+    bool "Peripheral Activity State Sync"
+    help
+      Enable propagating activity state (active/idle/sleep) to the split peripheral(s),
+      so both halves idle their backlight simultaneously.
+
+config ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC
+    bool "Peripheral Backlight Breathing Sync"
+    depends on ZMK_BACKLIGHT_BREATHE_IDLE
+    help
+      Enable propagating backlight breathing state to the split peripheral(s).
+
 endif # ZMK_SPLIT
 
 rsource "bluetooth/Kconfig"

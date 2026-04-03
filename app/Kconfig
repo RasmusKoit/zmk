@@ -368,6 +368,29 @@ config ZMK_BACKLIGHT_AUTO_OFF_IDLE
 config ZMK_BACKLIGHT_AUTO_OFF_USB
     bool "Turn off backlight when USB is disconnected"
 
+config ZMK_BACKLIGHT_BREATHE_IDLE
+    bool "Breathing LED effect when idle and USB powered"
+    depends on ZMK_BACKLIGHT_AUTO_OFF_IDLE
+    help
+      Instead of turning off the backlight when idle, show a breathing
+      animation when USB power is present. When on battery, backlight
+      turns off as normal to save power.
+
+config ZMK_BACKLIGHT_BREATHE_SPEED
+    int "Breathing animation speed (1-10)"
+    default 3
+    range 1 10
+    depends on ZMK_BACKLIGHT_BREATHE_IDLE
+
+config ZMK_BACKLIGHT_BREATHE_TIMEOUT
+    int "Breathing timeout in seconds (0 = no timeout)"
+    default 0
+    depends on ZMK_BACKLIGHT_BREATHE_IDLE
+    help
+      Stop the breathing animation after this many seconds.
+      The backlight will turn off after the timeout.
+      Set to 0 to breathe indefinitely.
+
 endif # ZMK_BACKLIGHT
 
 endmenu # Display/LED Options

@@ -69,7 +69,13 @@ static int note_activity(void) {
     return set_state(ZMK_ACTIVITY_ACTIVE);
 }
 
-static int activity_event_listener(const zmk_event_t *eh) { return note_activity(); }
+static int activity_event_listener(const zmk_event_t *eh) {
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+    return ZMK_EV_EVENT_BUBBLE;
+#else
+    return note_activity();
+#endif
+}
 
 void activity_work_handler(struct k_work *work) {
     int32_t current = k_uptime_get();
@@ -102,7 +108,9 @@ K_TIMER_DEFINE(activity_timer, activity_expiry_function, NULL);
 static int activity_init(void) {
     activity_last_uptime = k_uptime_get();
 
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
     k_timer_start(&activity_timer, K_SECONDS(1), K_SECONDS(1));
+#endif
     return 0;
 }
 

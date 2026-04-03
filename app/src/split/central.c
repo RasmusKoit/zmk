@@ -19,6 +19,10 @@
 #include <zmk/events/position_state_changed.h>
 #include <zmk/events/sensor_event.h>
 
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+#include <zmk/events/activity_state_changed.h>
+#endif
+
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 const struct zmk_split_transport_central *active_transport;
@@ -149,6 +153,81 @@ int zmk_split_central_update_hid_indicator(zmk_hid_indicators_t indicators) {
 }
 
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+
+static int send_command_to_all_peripherals(struct zmk_split_transport_central_command command) {
+    if (!active_transport || !active_transport->api ||
+        !active_transport->api->get_available_source_ids || !active_transport->api->send_command) {
+        return -ENODEV;
+    }
+
+    uint8_t source_ids[ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT];
+
+    int ret = active_transport->api->get_available_source_ids(source_ids);
+
+    if (ret < 0) {
+        return ret;
+    }
+
+    for (size_t i = 0; i < ret; i++) {
+        int err = active_transport->api->send_command(source_ids[i], command);
+        if (err < 0) {
+            return err;
+        }
+    }
+
+    return 0;
+}
+
+int zmk_split_central_update_activity_state(uint8_t activity_state) {
+    struct zmk_split_transport_central_command command =
+        (struct zmk_split_transport_central_command){
+            .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_ACTIVITY_STATE,
+            .data =
+                {
+                    .set_activity_state =
+                        {
+                            .activity_state = activity_state,
+                        },
+                },
+        };
+
+    return send_command_to_all_peripherals(command);
+}
+
+static int split_central_activity_listener(const zmk_event_t *eh) {
+    const struct zmk_activity_state_changed *ev = as_zmk_activity_state_changed(eh);
+    if (ev) {
+        zmk_split_central_update_activity_state((uint8_t)ev->state);
+    }
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(split_central_activity, split_central_activity_listener);
+ZMK_SUBSCRIPTION(split_central_activity, zmk_activity_state_changed);
+
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+
+int zmk_split_central_update_backlight_breathe(uint8_t active) {
+    struct zmk_split_transport_central_command command =
+        (struct zmk_split_transport_central_command){
+            .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_BACKLIGHT_BREATHE,
+            .data =
+                {
+                    .set_backlight_breathe =
+                        {
+                            .active = active,
+                        },
+                },
+        };
+
+    return send_command_to_all_peripherals(command);
+}
+
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
 
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
 

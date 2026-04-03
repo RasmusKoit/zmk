@@ -59,6 +59,12 @@ struct peripheral_slot {
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
     uint16_t update_hid_indicators;
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+    uint16_t update_activity_state;
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+    uint16_t update_backlight_breathe;
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
     uint16_t selected_physical_layout_handle;
     uint8_t position_state[POSITION_STATE_DATA_LEN];
     uint8_t changed_positions[POSITION_STATE_DATA_LEN];
@@ -219,6 +225,12 @@ int release_peripheral_slot(int index) {
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
     slot->update_hid_indicators = 0;
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+    slot->update_activity_state = 0;
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+    slot->update_backlight_breathe = 0;
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
 
     return 0;
 }
@@ -620,6 +632,18 @@ static uint8_t split_central_chrc_discovery_func(struct bt_conn *conn,
             LOG_DBG("Found update HID indicators handle");
             slot->update_hid_indicators = bt_gatt_attr_value_handle(attr);
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+        } else if (!bt_uuid_cmp(((struct bt_gatt_chrc *)attr->user_data)->uuid,
+                                BT_UUID_DECLARE_128(ZMK_SPLIT_BT_UPDATE_ACTIVITY_STATE_UUID))) {
+            LOG_DBG("Found update activity state handle");
+            slot->update_activity_state = bt_gatt_attr_value_handle(attr);
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+        } else if (!bt_uuid_cmp(((struct bt_gatt_chrc *)attr->user_data)->uuid,
+                                BT_UUID_DECLARE_128(ZMK_SPLIT_BT_UPDATE_BACKLIGHT_BREATHE_UUID))) {
+            LOG_DBG("Found update backlight breathe handle");
+            slot->update_backlight_breathe = bt_gatt_attr_value_handle(attr);
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
         } else if (!bt_uuid_cmp(((struct bt_gatt_chrc *)attr->user_data)->uuid,
                                 BT_UUID_BAS_BATTERY_LEVEL)) {
@@ -695,6 +719,12 @@ static uint8_t split_central_chrc_discovery_func(struct bt_conn *conn,
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
     subscribed = subscribed && slot->update_hid_indicators;
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+    subscribed = subscribed && slot->update_activity_state;
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+    subscribed = subscribed && slot->update_backlight_breathe;
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
     subscribed = subscribed && slot->batt_lvl_subscribe_params.value_handle;
 #endif /* IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING) */
@@ -1075,24 +1105,57 @@ void split_central_split_run_callback(struct k_work *work) {
         case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_HID_INDICATORS:
             LOG_WRN("do the indicators dance");
             if (peripherals[payload_wrapper.source].update_hid_indicators == 0) {
-                // It appears that sometimes the peripheral is considered connected
-                // before the GATT characteristics have been discovered. If this is
-                // the case, the update_hid_indicators handle will not yet be set.
                 LOG_WRN("NO HANDLE TO SET ON PERIPHERAL");
                 break;
             }
 
-            int err = bt_gatt_write_without_response(
+            int hid_err = bt_gatt_write_without_response(
                 peripherals[payload_wrapper.source].conn,
                 peripherals[payload_wrapper.source].update_hid_indicators,
                 &payload_wrapper.cmd.data.set_hid_indicators.indicators,
                 sizeof(payload_wrapper.cmd.data.set_hid_indicators.indicators), true);
 
-            if (err) {
-                LOG_ERR("Failed to write HID indicator characteristic (err %d)", err);
+            if (hid_err) {
+                LOG_ERR("Failed to write HID indicator characteristic (err %d)", hid_err);
             }
             break;
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+        case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_ACTIVITY_STATE:
+            if (peripherals[payload_wrapper.source].update_activity_state == 0) {
+                LOG_WRN("No activity state handle on peripheral");
+                break;
+            }
+
+            int act_err = bt_gatt_write_without_response(
+                peripherals[payload_wrapper.source].conn,
+                peripherals[payload_wrapper.source].update_activity_state,
+                &payload_wrapper.cmd.data.set_activity_state.activity_state,
+                sizeof(payload_wrapper.cmd.data.set_activity_state.activity_state), true);
+
+            if (act_err) {
+                LOG_ERR("Failed to write activity state characteristic (err %d)", act_err);
+            }
+            break;
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+        case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_BACKLIGHT_BREATHE:
+            if (peripherals[payload_wrapper.source].update_backlight_breathe == 0) {
+                LOG_WRN("No backlight breathe handle on peripheral");
+                break;
+            }
+
+            int bl_err = bt_gatt_write_without_response(
+                peripherals[payload_wrapper.source].conn,
+                peripherals[payload_wrapper.source].update_backlight_breathe,
+                &payload_wrapper.cmd.data.set_backlight_breathe.active,
+                sizeof(payload_wrapper.cmd.data.set_backlight_breathe.active), true);
+
+            if (bl_err) {
+                LOG_ERR("Failed to write backlight breathe characteristic (err %d)", bl_err);
+            }
+            break;
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
         default:
             LOG_WRN("Unsupported wrapped central command type %d", payload_wrapper.cmd.type);
             return;
@@ -1176,6 +1239,8 @@ static int split_central_bt_send_command(uint8_t source,
     switch (cmd.type) {
     case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_HID_INDICATORS:
     case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_PHYSICAL_LAYOUT:
+    case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_ACTIVITY_STATE:
+    case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_BACKLIGHT_BREATHE:
     case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_INVOKE_BEHAVIOR: {
         struct central_cmd_wrapper wrapper = {.source = source, .cmd = cmd};
         return split_bt_invoke_behavior_payload(wrapper);

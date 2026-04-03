@@ -13,12 +13,27 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
 
+#include <stdlib.h>
+
 #include <zmk/activity.h>
 #include <zmk/backlight.h>
 #include <zmk/usb.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/activity_state_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC) && \
+    IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#include <zmk/split/central.h>
+#define BREATHE_SYNC_CENTRAL 1
+#endif
+
+// Only the central (or non-split) should decide when to start breathing.
+// Peripherals only breathe when told to via sync commands.
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC) && \
+    !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#define BREATHE_PERIPHERAL_ONLY 1
+#endif
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
@@ -150,6 +165,99 @@ uint8_t zmk_backlight_calc_brt_cycle(void) {
     }
 }
 
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE)
+
+static bool breathing_active = false;
+static uint16_t breathe_step = 0;
+
+#if CONFIG_ZMK_BACKLIGHT_BREATHE_TIMEOUT > 0
+static void backlight_breathe_timeout_cb(struct k_work *work) {
+    if (breathing_active) {
+        zmk_backlight_breathe_stop();
+    }
+}
+static K_WORK_DELAYABLE_DEFINE(backlight_breathe_timeout_work, backlight_breathe_timeout_cb);
+#endif
+
+static void backlight_set_raw_brightness(uint8_t brt) {
+    for (int i = 0; i < BACKLIGHT_NUM_LEDS; i++) {
+        led_set_brightness(backlight_dev, i, brt);
+    }
+}
+
+static void backlight_breathe_tick(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(backlight_breathe_work, backlight_breathe_tick);
+
+static void backlight_breathe_tick(struct k_work *work) {
+    if (!breathing_active) {
+        return;
+    }
+
+    uint8_t brt_pct = abs((int)breathe_step - 1200) / 12;
+    uint8_t actual_brt = (uint8_t)((uint16_t)brt_pct * state.brightness / 100);
+
+    backlight_set_raw_brightness(actual_brt);
+
+    breathe_step += CONFIG_ZMK_BACKLIGHT_BREATHE_SPEED * 10;
+    if (breathe_step > 2400) {
+        breathe_step = 0;
+    }
+
+    k_work_schedule(&backlight_breathe_work, K_MSEC(50));
+}
+
+int zmk_backlight_breathe_start(void) {
+    if (breathing_active) {
+        return 0;
+    }
+    breathing_active = true;
+    breathe_step = 0;
+    k_work_schedule(&backlight_breathe_work, K_MSEC(50));
+
+#if CONFIG_ZMK_BACKLIGHT_BREATHE_TIMEOUT > 0
+    k_work_schedule(&backlight_breathe_timeout_work,
+                    K_SECONDS(CONFIG_ZMK_BACKLIGHT_BREATHE_TIMEOUT));
+#endif
+
+#if BREATHE_SYNC_CENTRAL
+    zmk_split_central_update_backlight_breathe(1);
+#endif
+
+    return 0;
+}
+
+int zmk_backlight_breathe_stop(void) {
+    if (!breathing_active) {
+        return 0;
+    }
+    breathing_active = false;
+    k_work_cancel_delayable(&backlight_breathe_work);
+
+#if CONFIG_ZMK_BACKLIGHT_BREATHE_TIMEOUT > 0
+    k_work_cancel_delayable(&backlight_breathe_timeout_work);
+#endif
+
+#if BREATHE_SYNC_CENTRAL
+    zmk_split_central_update_backlight_breathe(0);
+#endif
+
+    return zmk_backlight_update();
+}
+
+#else
+
+int zmk_backlight_breathe_start(void) { return -ENOTSUP; }
+int zmk_backlight_breathe_stop(void) { return -ENOTSUP; }
+
+#endif // IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE)
+
+#define BACKLIGHT_NEEDS_LISTENER                                                                   \
+    (IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE) ||                                             \
+     IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_USB) ||                                              \
+     IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE))
+
+#if BACKLIGHT_NEEDS_LISTENER
+
 #if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE) || IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_USB)
 static int backlight_auto_state(bool *prev_state, bool new_state) {
     if (state.on == new_state) {
@@ -159,20 +267,66 @@ static int backlight_auto_state(bool *prev_state, bool new_state) {
     *prev_state = !new_state;
     return zmk_backlight_update();
 }
+#endif
 
 static int backlight_event_listener(const zmk_event_t *eh) {
 
 #if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE)
-    if (as_zmk_activity_state_changed(eh)) {
-        static bool prev_state = false;
-        return backlight_auto_state(&prev_state, zmk_activity_get_state() == ZMK_ACTIVITY_ACTIVE);
+    const struct zmk_activity_state_changed *activity_ev;
+    if ((activity_ev = as_zmk_activity_state_changed(eh)) != NULL) {
+        enum zmk_activity_state activity = activity_ev->state;
+
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE)
+        if (breathing_active) {
+            zmk_backlight_breathe_stop();
+        }
+#endif // IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE)
+
+        static bool idle_prev_state = false;
+        bool was_on = state.on;
+        int rc = backlight_auto_state(&idle_prev_state, activity == ZMK_ACTIVITY_ACTIVE);
+
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE)
+        if (activity == ZMK_ACTIVITY_IDLE && was_on) {
+#if !BREATHE_PERIPHERAL_ONLY
+            bool usb_powered = false;
+#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
+            usb_powered = zmk_usb_is_powered();
+#endif
+            if (usb_powered) {
+                zmk_backlight_breathe_start();
+            }
+#endif // !BREATHE_PERIPHERAL_ONLY
+        }
+#endif // IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE)
+
+        return rc;
     }
 #endif
 
-#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_USB)
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_USB) || IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE)
     if (as_zmk_usb_conn_state_changed(eh)) {
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE)
+        bool usb_powered = false;
+#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
+        usb_powered = zmk_usb_is_powered();
+#endif
+        if (breathing_active && !usb_powered) {
+            zmk_backlight_breathe_stop();
+        }
+#if !BREATHE_PERIPHERAL_ONLY
+        else if (!breathing_active && usb_powered &&
+                   zmk_activity_get_state() == ZMK_ACTIVITY_IDLE) {
+            zmk_backlight_breathe_start();
+        }
+#endif // !BREATHE_PERIPHERAL_ONLY
+#endif
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_USB)
         static bool prev_state = false;
         return backlight_auto_state(&prev_state, zmk_usb_is_powered());
+#else
+        return 0;
+#endif
     }
 #endif
 
@@ -180,14 +334,13 @@ static int backlight_event_listener(const zmk_event_t *eh) {
 }
 
 ZMK_LISTENER(backlight, backlight_event_listener);
-#endif // IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE) ||
-       // IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_USB)
+#endif // BACKLIGHT_NEEDS_LISTENER
 
 #if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE)
 ZMK_SUBSCRIPTION(backlight, zmk_activity_state_changed);
 #endif
 
-#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_USB)
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_USB) || IS_ENABLED(CONFIG_ZMK_BACKLIGHT_BREATHE_IDLE)
 ZMK_SUBSCRIPTION(backlight, zmk_usb_conn_state_changed);
 #endif
 

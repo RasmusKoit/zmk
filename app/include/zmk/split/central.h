@@ -41,6 +41,18 @@ int zmk_split_central_update_hid_indicator(zmk_hid_indicators_t indicators);
 
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
 
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+
+int zmk_split_central_update_activity_state(uint8_t activity_state);
+
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+
+int zmk_split_central_update_backlight_breathe(uint8_t active);
+
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
 
 int zmk_split_central_get_peripheral_battery_level(uint8_t source, uint8_t *level);

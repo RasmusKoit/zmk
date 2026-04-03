@@ -22,6 +22,14 @@
 #include <zmk/events/hid_indicators_changed.h>
 #endif
 
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+#include <zmk/events/activity_state_changed.h>
+#endif
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+#include <zmk/backlight.h>
+#endif
+
 #include <zephyr/init.h>
 #include <zephyr/logging/log.h>
 
@@ -64,6 +72,21 @@ int zmk_split_transport_peripheral_command_handler(
     case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_HID_INDICATORS: {
         return raise_zmk_hid_indicators_changed((struct zmk_hid_indicators_changed){
             .indicators = cmd.data.set_hid_indicators.indicators});
+    }
+#endif
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+    case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_ACTIVITY_STATE: {
+        return raise_zmk_activity_state_changed((struct zmk_activity_state_changed){
+            .state = (enum zmk_activity_state)cmd.data.set_activity_state.activity_state});
+    }
+#endif
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+    case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_BACKLIGHT_BREATHE: {
+        if (cmd.data.set_backlight_breathe.active) {
+            return zmk_backlight_breathe_start();
+        } else {
+            return zmk_backlight_breathe_stop();
+        }
     }
 #endif
     default:

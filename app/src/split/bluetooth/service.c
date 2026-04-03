@@ -32,6 +32,14 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/events/hid_indicators_changed.h>
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
 
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+#include <zmk/events/activity_state_changed.h>
+#endif
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+#include <zmk/backlight.h>
+#endif
+
 #include <zmk/events/sensor_event.h>
 #include <zmk/sensors.h>
 
@@ -139,6 +147,65 @@ static ssize_t split_svc_get_selected_phys_layout(struct bt_conn *conn,
     return bt_gatt_attr_read(conn, attrs, buf, len, offset, &selected, sizeof(selected));
 }
 
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+
+static uint8_t synced_activity_state = 0;
+
+static void split_svc_update_activity_state_callback(struct k_work *work) {
+    LOG_DBG("Raising activity state changed event: %d", synced_activity_state);
+    raise_zmk_activity_state_changed(
+        (struct zmk_activity_state_changed){.state = (enum zmk_activity_state)synced_activity_state});
+}
+
+static K_WORK_DEFINE(split_svc_update_activity_state_work,
+                     split_svc_update_activity_state_callback);
+
+static ssize_t split_svc_update_activity_state(struct bt_conn *conn,
+                                               const struct bt_gatt_attr *attr, const void *buf,
+                                               uint16_t len, uint16_t offset, uint8_t flags) {
+    if (offset + len > sizeof(uint8_t)) {
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+    }
+
+    memcpy(&synced_activity_state + offset, buf, len);
+    k_work_submit(&split_svc_update_activity_state_work);
+
+    return len;
+}
+
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+
+static uint8_t synced_breathe_state = 0;
+
+static void split_svc_update_backlight_breathe_callback(struct k_work *work) {
+    LOG_DBG("Backlight breathe sync: %d", synced_breathe_state);
+    if (synced_breathe_state) {
+        zmk_backlight_breathe_start();
+    } else {
+        zmk_backlight_breathe_stop();
+    }
+}
+
+static K_WORK_DEFINE(split_svc_update_backlight_breathe_work,
+                     split_svc_update_backlight_breathe_callback);
+
+static ssize_t split_svc_update_backlight_breathe(struct bt_conn *conn,
+                                                  const struct bt_gatt_attr *attr, const void *buf,
+                                                  uint16_t len, uint16_t offset, uint8_t flags) {
+    if (offset + len > sizeof(uint8_t)) {
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+    }
+
+    memcpy(&synced_breathe_state + offset, buf, len);
+    k_work_submit(&split_svc_update_backlight_breathe_work);
+
+    return len;
+}
+
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+
 #if IS_ENABLED(CONFIG_ZMK_INPUT_SPLIT)
 
 static void split_input_events_ccc(const struct bt_gatt_attr *attr, uint16_t value) {
@@ -201,6 +268,16 @@ BT_GATT_SERVICE_DEFINE(
                                BT_GATT_CHRC_WRITE_WITHOUT_RESP, BT_GATT_PERM_WRITE_ENCRYPT, NULL,
                                split_svc_update_indicators, NULL),
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+        BT_GATT_CHARACTERISTIC(BT_UUID_DECLARE_128(ZMK_SPLIT_BT_UPDATE_ACTIVITY_STATE_UUID),
+                               BT_GATT_CHRC_WRITE_WITHOUT_RESP, BT_GATT_PERM_WRITE_ENCRYPT, NULL,
+                               split_svc_update_activity_state, NULL),
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_ACTIVITY_SYNC)
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
+        BT_GATT_CHARACTERISTIC(BT_UUID_DECLARE_128(ZMK_SPLIT_BT_UPDATE_BACKLIGHT_BREATHE_UUID),
+                               BT_GATT_CHRC_WRITE_WITHOUT_RESP, BT_GATT_PERM_WRITE_ENCRYPT, NULL,
+                               split_svc_update_backlight_breathe, NULL),
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_BACKLIGHT_BREATHE_SYNC)
     BT_GATT_CHARACTERISTIC(BT_UUID_DECLARE_128(ZMK_SPLIT_BT_SELECT_PHYS_LAYOUT_UUID),
                            BT_GATT_CHRC_WRITE | BT_GATT_CHRC_READ,
                            BT_GATT_PERM_WRITE_ENCRYPT | BT_GATT_PERM_READ_ENCRYPT,

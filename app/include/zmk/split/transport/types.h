@@ -66,6 +66,8 @@ enum zmk_split_transport_central_command_type {
     ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_INVOKE_BEHAVIOR,
     ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_PHYSICAL_LAYOUT,
     ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_HID_INDICATORS,
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_ACTIVITY_STATE,
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_BACKLIGHT_BREATHE,
 } __packed;
 
 struct zmk_split_transport_central_command {
@@ -87,5 +89,13 @@ struct zmk_split_transport_central_command {
         struct {
             zmk_hid_indicators_t indicators;
         } set_hid_indicators;
+
+        struct {
+            uint8_t activity_state;
+        } set_activity_state;
+
+        struct {
+            uint8_t active;
+        } set_backlight_breathe;
     } data;
 } __packed;
