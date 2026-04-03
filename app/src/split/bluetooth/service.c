@@ -153,8 +153,8 @@ static uint8_t synced_activity_state = 0;
 
 static void split_svc_update_activity_state_callback(struct k_work *work) {
     LOG_DBG("Raising activity state changed event: %d", synced_activity_state);
-    raise_zmk_activity_state_changed(
-        (struct zmk_activity_state_changed){.state = (enum zmk_activity_state)synced_activity_state});
+    raise_zmk_activity_state_changed((struct zmk_activity_state_changed){
+        .state = (enum zmk_activity_state)synced_activity_state});
 }
 
 static K_WORK_DEFINE(split_svc_update_activity_state_work,

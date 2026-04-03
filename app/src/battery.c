@@ -28,7 +28,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 static uint8_t last_state_of_charge = 0;
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) && \
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) &&                   \
     IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
 static uint8_t peripheral_state_of_charge = 0;
 static bool peripheral_battery_known = false;
@@ -51,19 +51,14 @@ static const struct device *battery;
 // Battery profile for YDL375678 - OCV table from characterization
 // Voltage points from 2990mV to 4200mV in 10mV steps
 static const uint16_t battery_ocv_table[] = {
-    2990, 3000, 3010, 3020, 3030, 3040, 3050, 3060, 3070, 3080, 3090, 3100,
-    3110, 3120, 3130, 3140, 3150, 3160, 3170, 3180, 3190, 3200,
-    3210, 3220, 3230, 3240, 3250, 3260, 3270, 3280, 3290, 3300,
-    3310, 3320, 3330, 3340, 3350, 3360, 3370, 3380, 3390, 3400,
-    3410, 3420, 3430, 3440, 3450, 3460, 3470, 3480, 3490, 3500,
-    3510, 3520, 3530, 3540, 3550, 3560, 3570, 3580, 3590, 3600,
-    3610, 3620, 3630, 3640, 3650, 3660, 3670, 3680, 3690, 3700,
-    3710, 3720, 3730, 3740, 3750, 3760, 3770, 3780, 3790, 3800,
-    3810, 3820, 3830, 3840, 3850, 3860, 3870, 3880, 3890, 3900,
-    3910, 3920, 3930, 3940, 3950, 3960, 3970, 3980, 3990, 4000,
-    4010, 4020, 4030, 4040, 4050, 4060, 4070, 4080, 4090, 4100,
-    4110, 4120, 4130, 4140, 4150, 4160, 4170, 4180, 4190, 4200
-};
+    2990, 3000, 3010, 3020, 3030, 3040, 3050, 3060, 3070, 3080, 3090, 3100, 3110, 3120, 3130, 3140,
+    3150, 3160, 3170, 3180, 3190, 3200, 3210, 3220, 3230, 3240, 3250, 3260, 3270, 3280, 3290, 3300,
+    3310, 3320, 3330, 3340, 3350, 3360, 3370, 3380, 3390, 3400, 3410, 3420, 3430, 3440, 3450, 3460,
+    3470, 3480, 3490, 3500, 3510, 3520, 3530, 3540, 3550, 3560, 3570, 3580, 3590, 3600, 3610, 3620,
+    3630, 3640, 3650, 3660, 3670, 3680, 3690, 3700, 3710, 3720, 3730, 3740, 3750, 3760, 3770, 3780,
+    3790, 3800, 3810, 3820, 3830, 3840, 3850, 3860, 3870, 3880, 3890, 3900, 3910, 3920, 3930, 3940,
+    3950, 3960, 3970, 3980, 3990, 4000, 4010, 4020, 4030, 4040, 4050, 4060, 4070, 4080, 4090, 4100,
+    4110, 4120, 4130, 4140, 4150, 4160, 4170, 4180, 4190, 4200};
 
 #define BATTERY_OCV_TABLE_SIZE (sizeof(battery_ocv_table) / sizeof(battery_ocv_table[0]))
 
@@ -87,7 +82,7 @@ static uint8_t battery_profile_mv_to_pct(int16_t bat_mv) {
 
             // Interpolate based on voltage position between the two points
             float voltage_fraction = (float)(bat_mv - battery_ocv_table[i]) /
-                                   (float)(battery_ocv_table[i + 1] - battery_ocv_table[i]);
+                                     (float)(battery_ocv_table[i + 1] - battery_ocv_table[i]);
             float soc = soc_low + (soc_high - soc_low) * voltage_fraction;
 
             return (uint8_t)(soc + 0.5f); // Round to nearest integer
@@ -97,9 +92,7 @@ static uint8_t battery_profile_mv_to_pct(int16_t bat_mv) {
     return 50; // Fallback
 }
 
-static uint8_t lithium_ion_mv_to_pct(int16_t bat_mv) {
-    return battery_profile_mv_to_pct(bat_mv);
-}
+static uint8_t lithium_ion_mv_to_pct(int16_t bat_mv) { return battery_profile_mv_to_pct(bat_mv); }
 
 #else
 // Generic lithium-ion battery profile
@@ -117,7 +110,8 @@ static uint8_t lithium_ion_mv_to_pct(int16_t bat_mv) {
 }
 #endif // IS_ENABLED(CONFIG_ZMK_BATTERY_PROFILE_YDL375678)
 
-#endif // IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_LITHIUM_VOLTAGE) || IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
+#endif // IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_LITHIUM_VOLTAGE) ||
+       // IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
 
 static int zmk_battery_update(const struct device *battery) {
     struct sensor_value state_of_charge;
@@ -192,7 +186,7 @@ static int zmk_battery_update(const struct device *battery) {
     {
         uint8_t reported_level = last_state_of_charge;
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) && \
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) &&                   \
     IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
         if (peripheral_battery_known && peripheral_state_of_charge < reported_level) {
             reported_level = peripheral_state_of_charge;
@@ -288,7 +282,7 @@ ZMK_LISTENER(battery, battery_event_listener);
 
 ZMK_SUBSCRIPTION(battery, zmk_activity_state_changed);
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) && \
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) &&                   \
     IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
 
 static int peripheral_battery_event_listener(const zmk_event_t *eh) {
