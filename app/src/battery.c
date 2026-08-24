@@ -48,49 +48,7 @@ static const struct device *battery;
     IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING_FETCH_MODE_NPM1300_DIRECT)
 
 #if IS_ENABLED(CONFIG_ZMK_BATTERY_PROFILE_YDL375678)
-// Battery profile for YDL375678 - OCV table from characterization
-// Voltage points from 2990mV to 4200mV in 10mV steps
-static const uint16_t battery_ocv_table[] = {
-    2990, 3000, 3010, 3020, 3030, 3040, 3050, 3060, 3070, 3080, 3090, 3100, 3110, 3120, 3130, 3140,
-    3150, 3160, 3170, 3180, 3190, 3200, 3210, 3220, 3230, 3240, 3250, 3260, 3270, 3280, 3290, 3300,
-    3310, 3320, 3330, 3340, 3350, 3360, 3370, 3380, 3390, 3400, 3410, 3420, 3430, 3440, 3450, 3460,
-    3470, 3480, 3490, 3500, 3510, 3520, 3530, 3540, 3550, 3560, 3570, 3580, 3590, 3600, 3610, 3620,
-    3630, 3640, 3650, 3660, 3670, 3680, 3690, 3700, 3710, 3720, 3730, 3740, 3750, 3760, 3770, 3780,
-    3790, 3800, 3810, 3820, 3830, 3840, 3850, 3860, 3870, 3880, 3890, 3900, 3910, 3920, 3930, 3940,
-    3950, 3960, 3970, 3980, 3990, 4000, 4010, 4020, 4030, 4040, 4050, 4060, 4070, 4080, 4090, 4100,
-    4110, 4120, 4130, 4140, 4150, 4160, 4170, 4180, 4190, 4200};
-
-#define BATTERY_OCV_TABLE_SIZE (sizeof(battery_ocv_table) / sizeof(battery_ocv_table[0]))
-
-static uint8_t battery_profile_mv_to_pct(int16_t bat_mv) {
-    // Clamp to table range
-    if (bat_mv <= battery_ocv_table[0]) {
-        return 0;
-    }
-    if (bat_mv >= battery_ocv_table[BATTERY_OCV_TABLE_SIZE - 1]) {
-        return 100;
-    }
-
-    // Find the voltage range and interpolate
-    for (size_t i = 0; i < BATTERY_OCV_TABLE_SIZE - 1; i++) {
-        if (bat_mv >= battery_ocv_table[i] && bat_mv <= battery_ocv_table[i + 1]) {
-            // Linear interpolation between two points
-            // Each index step represents (100 / (table_size - 1)) percent
-            float soc_per_step = 100.0f / (BATTERY_OCV_TABLE_SIZE - 1);
-            float soc_low = i * soc_per_step;
-            float soc_high = (i + 1) * soc_per_step;
-
-            // Interpolate based on voltage position between the two points
-            float voltage_fraction = (float)(bat_mv - battery_ocv_table[i]) /
-                                     (float)(battery_ocv_table[i + 1] - battery_ocv_table[i]);
-            float soc = soc_low + (soc_high - soc_low) * voltage_fraction;
-
-            return (uint8_t)(soc + 0.5f); // Round to nearest integer
-        }
-    }
-
-    return 50; // Fallback
-}
+#include "battery_profile_ydl375678.h"
 
 static uint8_t lithium_ion_mv_to_pct(int16_t bat_mv) { return battery_profile_mv_to_pct(bat_mv); }
 
