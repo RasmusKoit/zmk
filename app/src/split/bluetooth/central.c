@@ -987,15 +987,20 @@ static void split_central_disconnected(struct bt_conn *conn, uint8_t reason) {
     LOG_DBG("Disconnected: %s (reason %d)", addr, reason);
 
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
-    struct peripheral_event_wrapper ev = {
-        .source = peripheral_slot_index_for_conn(conn),
-        .event = {.type = ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_BATTERY_EVENT,
-                  .data = {.battery_event = {
-                               .level = 0,
-                           }}}};
+    // This callback fires for every connection, including hosts; only
+    // report a lost battery level for an actual peripheral slot.
+    int slot_index = peripheral_slot_index_for_conn(conn);
+    if (slot_index >= 0) {
+        struct peripheral_event_wrapper ev = {
+            .source = slot_index,
+            .event = {.type = ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_BATTERY_EVENT,
+                      .data = {.battery_event = {
+                                   .level = 0,
+                               }}}};
 
-    k_msgq_put(&peripheral_event_msgq, &ev, K_NO_WAIT);
-    k_work_submit(&peripheral_event_work);
+        k_msgq_put(&peripheral_event_msgq, &ev, K_NO_WAIT);
+        k_work_submit(&peripheral_event_work);
+    }
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
 
 #if IS_ENABLED(CONFIG_ZMK_INPUT_SPLIT)
